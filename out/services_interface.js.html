@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: services/interface.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: services/interface.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>// process.env.SUPPRESS_NO_CONFIG_WARNING = true
+const MetaParser = require('./metaParser.js')
+const runMiddleware = require('./middlewareRunner.js')
+const fileWriter = require('./file-writer.js')
+const monitor = require('./monitor.js')
+const path = require('path')
+const createBundles = require('./createBundles')
+const log = require('./log')
+const config = require('config') || {}
+const defaults = require('../../config.defaults.json')
+
+// returnResult is for tests usage
+function Builder(
+  options,
+  returnResult = false,
+  metaParser = MetaParser({ cache: true })
+) {
+  return async function () {
+    const payload = await runMiddleware({options, metaParser})
+    const {tree, template} = payload
+
+    if (returnResult) {
+      return template
+    } else {
+      // Let's write some files
+      createBundles(tree.dir, options) // run bundle creation async
+      writeUrlIndex(tree, options)
+      const file = options.routifyDir + '/routes.js'
+      await fileWriter(template, file)
+      log('Generated routes')
+    }
+  }
+}
+
+/**
+ * flattenTree
+ * @param {Object} tree
+ * @param {Array} arr
+ */
+function flattenTree(tree, arr = []) {
+  tree.forEach(file => {
+    if (file.dir) arr.push(...flattenTree(file.dir))
+    else arr.push(file)
+  })
+  return arr
+}
+
+function writeUrlIndex(tree, options) {
+  const routes = flattenTree(tree.dir)
+    .filter(({ isFallback, isLayout }) => !isFallback &amp;&amp; !isLayout)
+    .filter(({ path }) => !path.match(/\/\:/))
+  const paths = routes.map(({ path }) => path)
+  fileWriter(
+    'module.exports = ' + JSON.stringify(paths, 0, 2),
+    options.routifyDir + '/urlIndex.js'
+  )
+}
+
+// NOTE we want to keep this method synchronous to easily expose its public
+// API (i.e. the object it returns)
+const start = function start(inputOptions) {
+  const options = { ...defaults, ...config, ...inputOptions }
+  options.pages = path.resolve(options.pages).replace(/\\/g, '/')
+  options.started = new Date().toISOString()
+
+  fileWriter(JSON.stringify(options, 0, 2), options.routifyDir + '/config.json')
+  fileWriter(
+    'export default ' + JSON.stringify(options, 0, 2),
+    options.routifyDir + '/config.js'
+  )
+
+  const isWatch = !options.singleBuild
+
+  const metaParser = MetaParser({ cache: isWatch })
+
+  const build = Builder(options, false, metaParser)
+  const buildPromise = build()
+
+  const watch = isWatch &amp;&amp; monitor(options, metaParser, build)
+
+  if (watch) {
+    if (options.childProcess) runChildProcess(options.childProcess)
+    return {
+      // wait change is intented to mitigate a nasty race between Routify and
+      // rollup-plugin-hot/autocreate plugin (see Rollup plugin source for details)
+      waitChange: async () => watch.waitChange(),
+
+      // used by plugins (e.g. Rollup) to block the build until routes are
+      // really ready
+      waitIdle: async () => Promise.all([buildPromise, watch.waitIdle()]),
+
+      // allows to cleanly closes test runner
+      close: () => watch.close(),
+    }
+  } else {
+    const resolved = Promise.resolve()
+    return {
+      waitChange: () => resolved,
+      waitIdle: async () => await buildPromise,
+      close() { },
+    }
+  }
+}
+
+function runChildProcess(name) {
+  require('child_process').spawn('npm', ['run', name], {
+    cwd: process.cwd(),
+    stdio: ['ignore', 'inherit', 'inherit'],
+    shell: true,
+  })
+}
+
+module.exports = {
+  Builder, // for tests
+  start,
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#_dump">_dump</a></li><li><a href="global.html#_log">_log</a></li><li><a href="global.html#applyMetaToTree">applyMetaToTree</a></li><li><a href="global.html#clone">clone</a></li><li><a href="global.html#createNodeMiddleware">createNodeMiddleware</a></li><li><a href="global.html#defineDefaultMeta">defineDefaultMeta</a></li><li><a href="global.html#flattenTree">flattenTree</a></li><li><a href="global.html#fsa">fsa</a></li><li><a href="global.html#generateFileTree">generateFileTree</a></li><li><a href="global.html#mergeMeta">mergeMeta</a></li><li><a href="global.html#nodeMiddleware">nodeMiddleware</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.3</a> on Tue Apr 07 2020 18:23:25 GMT+0200 (GMT+02:00)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
