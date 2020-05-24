@@ -115,13 +115,22 @@ async function runHooksBeforeUrlChange(event) {
 
 function urlToRoute(url, routes) {
   const basepath = get(stores.basepath)
-  const route = routes.find(route => url.match(`^${basepath}${route.regex}`))
+  console.log({URL: url});
+  function regexFor(route) {
+    const baseRegex = route.basepath || basepath;
+    return `^${baseRegex}${route.regex}`
+  }
+  const route = routes.find(route => url.match(regexFor(route)))
   if (!route)
     throw new Error(
       `Route could not be found. Make sure ${url}.svelte or ${url}/index.svelte exists. A restart may be required.`
     )
 
-  const [, base, path] = url.match(`^(${get(stores.basepath)})(${route.regex})`)
+  const [, base, path] = url.match(`^(${route.basepath || basepath})(${route.regex})`)
+  if (base) {
+    console.log({basepath: base, path})
+    stores.basepath.set(base)
+  }
   if (config.queryHandler)
     route.params = config.queryHandler.parse(window.location.search)
 

@@ -3,7 +3,7 @@ import { pathToParams, pathToRank, pathToRegex } from '../utils'
 
 export const setRegex = createNodeMiddleware(({ file }) => {
     if (file.isPage || file.isFallback)
-        file.regex = pathToRegex(file.path, file.isFallback)
+        file.regex = file.regex || pathToRegex(file.path, file.isFallback)
 })
 export const setParamKeys = createNodeMiddleware(({ file }) => {
     file.paramKeys = pathToParams(file.path)

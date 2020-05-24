@@ -154,6 +154,7 @@ export const meta = {
 export const url = {
   subscribe(listener) {
     const ctx = getRoutifyContext()
+    console.log("---------", {route:route.regex});
     return derived(
       [ctx, route, routes, location],
       args => makeUrlHelper(...args)
@@ -172,6 +173,7 @@ export const url = {
  */
 export function makeUrlHelper($ctx, $oldRoute, $routes, $location) {
   return function url(path, params, options) {
+    console.log({fromPath: path});
     const { component } = $ctx
     path = path || './'
 
@@ -201,8 +203,14 @@ export function makeUrlHelper($ctx, $oldRoute, $routes, $location) {
       pathWithParams = pathWithParams.replace(`:${key}`, value)
     }
 
+    console.log({location: $location});
     const fullPath = $location.base + pathWithParams + _getQueryString(path, params)
-    return fullPath.replace(/\?$/, '')
+    let result = fullPath.replace(/\?$/, '')
+    if (result.length > 1) {
+      result += "/";
+    }
+    console.log({toPath: result});
+    return result;
   }
 }
 
